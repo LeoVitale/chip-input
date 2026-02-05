@@ -1,35 +1,226 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import { ChipInput } from './presentation/components/ChipInput';
+import type { Chip } from './domain/entities/Chip';
+import { createChip } from './domain/entities/Chip';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [chips, setChips] = useState<Chip[]>([
+    createChip('React', { id: '1' }),
+    createChip('TypeScript', { id: '2' }),
+    createChip('Vite', { id: '3' }),
+  ]);
+
+  const [chips2, setChips2] = useState<Chip[]>([
+    createChip('Node.js', { id: '4' }),
+    createChip('Express', { id: '5' }),
+  ]);
+
+  const [log, setLog] = useState<string[]>([]);
+
+  const addLog = (message: string) => {
+    setLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+  };
+
+  const handleCopy = (selectedChips: Chip[]) => {
+    const serialized = JSON.stringify(
+      selectedChips.map((c) => ({ id: c.id, label: c.label, value: c.value }))
+    );
+    navigator.clipboard.writeText(serialized);
+    addLog(`Copied ${selectedChips.length} chip(s) to clipboard`);
+  };
+
+  const handlePaste = (data: string): Chip[] | null => {
+    try {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        const newChips = parsed.map((item: { label: string; value?: string }) =>
+          createChip(item.label, {
+            id: crypto.randomUUID(), // Generate new IDs to avoid conflicts
+            value: item.value,
+          })
+        );
+        addLog(`Pasted ${newChips.length} chip(s)`);
+        return newChips;
+      }
+    } catch {
+      addLog('Paste failed: invalid format');
+    }
+    return null;
+  };
+
+  const handleChange1 = (newChips: Chip[]) => {
+    setChips(newChips);
+    addLog(`ChipInput 1 updated: ${newChips.length} chip(s)`);
+  };
+
+  const handleChange2 = (newChips: Chip[]) => {
+    setChips2(newChips);
+    addLog(`ChipInput 2 updated: ${newChips.length} chip(s)`);
+  };
+
+  const addRandomChip = (target: 1 | 2) => {
+    const randomWords = ['JavaScript', 'Python', 'Go', 'Rust', 'Java', 'C++', 'Ruby', 'PHP'];
+    const randomLabel = randomWords[Math.floor(Math.random() * randomWords.length)];
+    const newChip = createChip(randomLabel);
+
+    if (target === 1) {
+      setChips((prev) => [...prev, newChip]);
+      addLog(`Added "${randomLabel}" to ChipInput 1`);
+    } else {
+      setChips2((prev) => [...prev, newChip]);
+      addLog(`Added "${randomLabel}" to ChipInput 2`);
+    }
+  };
+
+  const clearLog = () => setLog([]);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
+      <h1>ChipInput - Controlled Component Demo</h1>
+
+      <div style={{ marginBottom: '40px' }}>
+        <h2>Instructions</h2>
+        <ul style={{ fontSize: '14px', lineHeight: '1.8' }}>
+          <li>
+            <strong>Select:</strong> Click a chip to select it, Cmd/Ctrl+Click to multi-select
+          </li>
+          <li>
+            <strong>Select All:</strong> Press Cmd/Ctrl+A
+          </li>
+          <li>
+            <strong>Delete:</strong> Press Delete or Backspace (removes selected chips)
+          </li>
+          <li>
+            <strong>Copy:</strong> Select chips, then press Cmd/Ctrl+C
+          </li>
+          <li>
+            <strong>Paste:</strong> Press Cmd/Ctrl+V (pastes copied chips)
+          </li>
+          <li>
+            <strong>Clear Selection:</strong> Press Escape
+          </li>
+        </ul>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
+
+      <div style={{ marginBottom: '30px' }}>
+        <h3>ChipInput #1</h3>
+        <ChipInput
+          value={chips}
+          onChange={handleChange1}
+          placeholder="No chips yet..."
+          onCopy={handleCopy}
+          onPaste={handlePaste}
+        />
+        <button
+          onClick={() => addRandomChip(1)}
+          style={{
+            marginTop: '10px',
+            padding: '8px 16px',
+            fontSize: '14px',
+            cursor: 'pointer',
+          }}
+        >
+          Add Random Chip
         </button>
+      </div>
+
+      <div style={{ marginBottom: '30px' }}>
+        <h3>ChipInput #2 (Cross-Instance Test)</h3>
+        <ChipInput
+          value={chips2}
+          onChange={handleChange2}
+          placeholder="Paste chips from ChipInput #1..."
+          onCopy={handleCopy}
+          onPaste={handlePaste}
+        />
+        <button
+          onClick={() => addRandomChip(2)}
+          style={{
+            marginTop: '10px',
+            padding: '8px 16px',
+            fontSize: '14px',
+            cursor: 'pointer',
+          }}
+        >
+          Add Random Chip
+        </button>
+      </div>
+
+      <div style={{ marginBottom: '30px' }}>
+        <h3>Current State</h3>
+        <div
+          style={{
+            background: '#f5f5f5',
+            padding: '16px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            fontFamily: 'monospace',
+          }}
+        >
+          <div>
+            <strong>ChipInput #1:</strong> {chips.length} chip(s) |{' '}
+            {chips.filter((c) => c.selected).length} selected
+          </div>
+          <div>
+            <strong>ChipInput #2:</strong> {chips2.length} chip(s) |{' '}
+            {chips2.filter((c) => c.selected).length} selected
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '10px',
+          }}
+        >
+          <h3>Event Log</h3>
+          <button
+            onClick={clearLog}
+            style={{
+              padding: '4px 12px',
+              fontSize: '12px',
+              cursor: 'pointer',
+            }}
+          >
+            Clear Log
+          </button>
+        </div>
+        <div
+          style={{
+            background: '#1e1e1e',
+            color: '#d4d4d4',
+            padding: '16px',
+            borderRadius: '4px',
+            fontSize: '13px',
+            fontFamily: 'monospace',
+            maxHeight: '200px',
+            overflowY: 'auto',
+          }}
+        >
+          {log.length === 0 ? (
+            <div style={{ color: '#666' }}>No events yet...</div>
+          ) : (
+            log.map((entry, index) => <div key={index}>{entry}</div>)
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginTop: '40px', fontSize: '12px', color: '#666' }}>
         <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
+          <strong>Source of Truth:</strong> STATE (controlled via value/onChange)
+        </p>
+        <p>
+          <strong>Contract:</strong> See{' '}
+          <code>src/presentation/components/ChipInput.contract.md</code>
         </p>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
 
-export default App
+export default App;
