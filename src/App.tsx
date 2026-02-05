@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChipInput } from './presentation/components/ChipInput';
 import type { Chip } from './domain/entities/Chip';
 import { createChip } from './domain/entities/Chip';
+import { ChipClipboardSerializer } from './application/serialization/ChipClipboardSerializer';
 import './App.css';
 
 function App() {
@@ -23,29 +24,27 @@ function App() {
   };
 
   const handleCopy = (selectedChips: Chip[]) => {
-    const serialized = JSON.stringify(
-      selectedChips.map((c) => ({ id: c.id, label: c.label, value: c.value }))
-    );
+    // Use ChipClipboardSerializer for deterministic serialization
+    const serialized = ChipClipboardSerializer.serialize(selectedChips);
     navigator.clipboard.writeText(serialized);
-    addLog(`Copied ${selectedChips.length} chip(s) to clipboard`);
+    addLog(`Copied ${selectedChips.length} chip(s) to clipboard (ChipInput format)`);
   };
 
   const handlePaste = (data: string): Chip[] | null => {
-    try {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        const newChips = parsed.map((item: { label: string; value?: string }) =>
-          createChip(item.label, {
-            id: crypto.randomUUID(), // Generate new IDs to avoid conflicts
-            value: item.value,
-          })
-        );
-        addLog(`Pasted ${newChips.length} chip(s)`);
-        return newChips;
-      }
-    } catch {
-      addLog('Paste failed: invalid format');
+    // Use ChipClipboardSerializer for robust deserialization
+    const chips = ChipClipboardSerializer.deserialize(data);
+    
+    if (chips) {
+      const isChipInputFormat = ChipClipboardSerializer.isChipInputFormat(data);
+      addLog(
+        `Pasted ${chips.length} chip(s) (${
+          isChipInputFormat ? 'ChipInput format' : 'plain text fallback'
+        })`
+      );
+      return chips;
     }
+    
+    addLog('Paste failed: invalid format');
     return null;
   };
 

@@ -6,11 +6,12 @@ A production-ready, controlled chip input component built with React, TypeScript
 
 - ✅ **Controlled Component** - Single source of truth via `value`/`onChange` props
 - ✅ **Keyboard Shortcuts** - Cmd/Ctrl+A (select all), Delete/Backspace (remove), Escape (clear selection)
-- ✅ **Clipboard Support** - Copy/paste chips between instances with custom serialization
+- ✅ **Clipboard Support** - Copy/paste chips between instances with deterministic serialization
 - ✅ **Multi-Selection** - Click to select, Cmd/Ctrl+Click to multi-select
+- ✅ **Plain Text Fallback** - Paste comma-separated text from external sources
 - ✅ **TypeScript** - Fully typed with strict type checking
-- ✅ **Clean Architecture** - Domain entities, presentation components, clear separation of concerns
-- ✅ **Fully Tested** - 15 tests covering all contract guarantees
+- ✅ **Clean Architecture** - Domain entities, application services, presentation components
+- ✅ **Fully Tested** - 41 tests covering all contract guarantees and serialization
 
 ## Quick Start
 
@@ -34,6 +35,7 @@ pnpm build
 import { useState } from 'react';
 import { ChipInput } from './presentation/components/ChipInput';
 import { createChip } from './domain/entities/Chip';
+import { ChipClipboardSerializer } from './application/serialization/ChipClipboardSerializer';
 
 function App() {
   const [chips, setChips] = useState([
@@ -43,19 +45,14 @@ function App() {
   ]);
 
   const handleCopy = (selectedChips) => {
-    const serialized = JSON.stringify(selectedChips);
+    // Use deterministic serializer
+    const serialized = ChipClipboardSerializer.serialize(selectedChips);
     navigator.clipboard.writeText(serialized);
   };
 
   const handlePaste = (data) => {
-    try {
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed)
-        ? parsed.map(item => createChip(item.label))
-        : null;
-    } catch {
-      return null;
-    }
+    // Supports ChipInput format AND plain text fallback
+    return ChipClipboardSerializer.deserialize(data);
   };
 
   return (
@@ -129,14 +126,19 @@ interface Chip {
 src/
 ├── domain/
 │   └── entities/
-│       └── Chip.ts              # Core domain model
+│       └── Chip.ts                          # Core domain model
+├── application/
+│   └── serialization/
+│       ├── ChipClipboardSerializer.ts       # Clipboard format service
+│       ├── ChipClipboardSerializer.test.ts  # Serializer tests (26 tests)
+│       └── CLIPBOARD_FORMAT.md              # Format specification
 ├── presentation/
 │   └── components/
-│       ├── ChipInput.tsx        # React component
-│       ├── ChipInput.test.tsx   # Tests (15 tests)
-│       └── ChipInput.contract.md # API contract documentation
+│       ├── ChipInput.tsx                    # React component
+│       ├── ChipInput.test.tsx               # Component tests (15 tests)
+│       └── ChipInput.contract.md            # API contract documentation
 └── test/
-    └── setup.ts                 # Test configuration
+    └── setup.ts                             # Test configuration
 ```
 
 ## Contract Guarantees
@@ -157,6 +159,30 @@ See [ChipInput.contract.md](./src/presentation/components/ChipInput.contract.md)
 4. ✅ Component never enters invalid state
 5. ✅ Controlled mode with value/onChange
 
+## Clipboard Format
+
+ChipInput uses a deterministic, versioned clipboard format:
+
+```
+__CHIPINPUT__:{"version":1,"chips":[{"id":"1","label":"React","value":"react"}]}
+```
+
+**Features:**
+- ✅ Deterministic (same chips = same output)
+- ✅ Order preserved
+- ✅ Cross-instance compatible
+- ✅ Plain text fallback (comma-separated)
+- ✅ Version-safe for future evolution
+
+**Example: Plain text fallback**
+```typescript
+// Paste "React, TypeScript, Vite" from external source
+const chips = ChipClipboardSerializer.deserialize("React, TypeScript, Vite");
+// Returns: [{ label: 'React' }, { label: 'TypeScript' }, { label: 'Vite' }]
+```
+
+See [CLIPBOARD_FORMAT.md](./src/application/serialization/CLIPBOARD_FORMAT.md) for full specification.
+
 ## Testing
 
 ```bash
@@ -167,12 +193,21 @@ pnpm test
 pnpm test:watch
 ```
 
-All acceptance criteria are validated by automated tests:
+All acceptance criteria are validated by **41 automated tests**:
+
+**Component Tests (15):**
 - Source of truth (state vs DOM)
 - Controlled component behavior
 - Keyboard shortcuts (Cmd+A, Delete, Backspace, Escape)
 - Copy/paste functionality
 - Multi-selection behavior
+
+**Serialization Tests (26):**
+- Deterministic payload generation
+- Order preservation
+- Cross-instance compatibility
+- Plain text fallback
+- Error handling
 
 ## Tech Stack
 
@@ -208,12 +243,12 @@ MIT
 
 - Epic: `chip-input-11c` - ChipInput Contenteditable Contract & Guarantees
 - Issue: `chip-input-7o2` - ChipInput public API & behavioral contract ✅ **COMPLETED**
+- Issue: `chip-input-bde` - Data model & clipboard serialization format ✅ **COMPLETED**
 
 ## Next Steps
 
 See remaining tasks in the epic:
-- `chip-input-bde` - Data model & clipboard serialization
-- `chip-input-bxw` - Selection & keyboard semantics (advanced)
+- `chip-input-bxw` - Selection & keyboard semantics (advanced) ⬅️ **NEXT**
 - `chip-input-97m` - RTL tests for selection + clipboard
 - `chip-input-33p` - Drag and drop semantics (P2)
 - `chip-input-utr` - Accessibility guarantees (P2)
