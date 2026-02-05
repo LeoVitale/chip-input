@@ -50,12 +50,13 @@ describe('ChipInput - Contract & API Tests', () => {
       const onChange = vi.fn();
       const user = userEvent.setup();
 
-      render(<ChipInput value={mockChips} onChange={onChange} />);
+      render(<ChipInput value={mockChips} onChange={onChange} onAdd={() => null} />);
 
-      const container = screen.getByText('React').parentElement;
-      if (!container) throw new Error('Container not found');
-
-      container.focus();
+      // Focus the input field
+      const input = screen.getByRole('textbox');
+      await user.click(input);
+      
+      // Backspace with empty input removes last chip
       await user.keyboard('{Backspace}');
 
       expect(onChange).toHaveBeenCalledWith(
@@ -246,7 +247,7 @@ describe('ChipInput - Contract & API Tests', () => {
         />
       );
 
-      expect(screen.getByText('Add chips...')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Add chips...')).toBeInTheDocument();
     });
 
     it('should clear selection when Escape is pressed', async () => {

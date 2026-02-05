@@ -48,6 +48,15 @@ function App() {
     return null;
   };
 
+  const handleAdd = (text: string): Chip | null => {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    const newChip = createChip(trimmed);
+    addLog(`Created chip: "${trimmed}"`);
+    return newChip;
+  };
+
   const handleChange1 = (newChips: Chip[]) => {
     setChips(newChips);
     addLog(`ChipInput 1 updated: ${newChips.length} chip(s)`);
@@ -82,13 +91,16 @@ function App() {
         <h2>Instructions</h2>
         <ul style={{ fontSize: '14px', lineHeight: '1.8' }}>
           <li>
+            <strong>Type & Enter:</strong> Type text and press Enter to create a chip
+          </li>
+          <li>
             <strong>Select:</strong> Click a chip to select it, Cmd/Ctrl+Click to multi-select
           </li>
           <li>
             <strong>Select All:</strong> Press Cmd/Ctrl+A
           </li>
           <li>
-            <strong>Delete:</strong> Press Delete or Backspace (removes selected chips)
+            <strong>Delete:</strong> Press Delete or Backspace (removes selected chips or last chip if empty)
           </li>
           <li>
             <strong>Copy:</strong> Select chips, then press Cmd/Ctrl+C
@@ -107,9 +119,10 @@ function App() {
         <ChipInput
           value={chips}
           onChange={handleChange1}
-          placeholder="No chips yet..."
+          placeholder="Type and press Enter to add chips..."
           onCopy={handleCopy}
           onPaste={handlePaste}
+          onAdd={handleAdd}
         />
         <button
           onClick={() => addRandomChip(1)}
@@ -129,9 +142,10 @@ function App() {
         <ChipInput
           value={chips2}
           onChange={handleChange2}
-          placeholder="Paste chips from ChipInput #1..."
+          placeholder="Type to add or paste from ChipInput #1..."
           onCopy={handleCopy}
           onPaste={handlePaste}
+          onAdd={handleAdd}
         />
         <button
           onClick={() => addRandomChip(2)}

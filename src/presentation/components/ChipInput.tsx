@@ -1,5 +1,5 @@
-import type { KeyboardEvent } from 'react';
-import { useCallback, useRef } from 'react';
+import type { KeyboardEvent, ChangeEvent } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Chip } from '../../domain/entities/Chip';
 
 /**
@@ -45,6 +45,19 @@ export interface ChipInputProps {
    * Receives clipboard data and should return chips to add
    */
   onPaste?: (data: string) => Chip[] | null;
+
+  /**
+   * Callback when a new chip should be added from text input
+   * Receives the text and should return a chip or null to reject
+   */
+  onAdd?: (text: string) => Chip | null;
+
+  /**
+   * Characters that trigger chip creation (in addition to Enter)
+   * Default: [] (only Enter creates chips)
+   * Example: [',', ';'] to create chips on comma or semicolon
+   */
+  separators?: string[];
 }
 
 /**
@@ -73,8 +86,12 @@ export function ChipInput({
   className = '',
   onCopy,
   onPaste,
+  onAdd,
+  separators = [],
 }: ChipInputProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputValue, setInputValue] = useState('');
 
   /**
    * Get all selected chips
@@ -96,12 +113,15 @@ export function ChipInput({
    * Clear all selections
    */
   const clearSelection = useCallback(() => {
+    // Only update if there are selected chips
+    if (selectedChips.length === 0) return;
+    
     const updatedChips = value.map((chip) => ({
       ...chip,
       selected: false,
     }));
     onChange(updatedChips);
-  }, [value, onChange]);
+  }, [value, selectedChips, onChange]);
 
   /**
    * Toggle chip selection
@@ -128,12 +148,37 @@ export function ChipInput({
       // Remove all selected chips
       const remainingChips = value.filter((chip) => !chip.selected);
       onChange(remainingChips);
-    } else if (value.length > 0) {
-      // Remove last chip if no selection
+      // Focus input after removal
+      inputRef.current?.focus();
+    } else if (value.length > 0 && inputValue === '') {
+      // Remove last chip only if input is empty
       const remainingChips = value.slice(0, -1);
       onChange(remainingChips);
+      // Focus input after removal
+      inputRef.current?.focus();
     }
-  }, [selectedChips, value, onChange]);
+  }, [selectedChips, value, inputValue, onChange]);
+
+  /**
+   * Create chip from input text
+   */
+  const createChipFromInput = useCallback(() => {
+    const trimmedValue = inputValue.trim();
+    if (!trimmedValue || !onAdd) return;
+
+    const newChip = onAdd(trimmedValue);
+    if (newChip) {
+      // Clear selection and add new chip
+      const updatedChips = [
+        ...value.map((chip) => ({ ...chip, selected: false })),
+        newChip,
+      ];
+      onChange(updatedChips);
+      setInputValue('');
+      // Keep focus on input
+      inputRef.current?.focus();
+    }
+  }, [inputValue, onAdd, value, onChange]);
 
   /**
    * Handle keyboard events
@@ -201,17 +246,94 @@ export function ChipInput({
       const clipboardData = event.clipboardData.getData('text/plain');
 
       const newChips = onPaste(clipboardData);
-      if (newChips && Array.isArray(newChips)) {
+      if (newChips && Array.isArray(newChips) && newChips.length > 0) {
         // Clear selection and append new chips
         const updatedChips = [
           ...value.map((chip) => ({ ...chip, selected: false })),
           ...newChips,
         ];
         onChange(updatedChips);
+        // Clear input after successful paste
+        setInputValue('');
       }
     },
     [onPaste, value, onChange]
   );
+
+  /**
+   * Handle input change
+   */
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const newValue = event.target.value;
+
+      // Check for separator characters
+      if (separators.length > 0 && onAdd) {
+        const lastChar = newValue[newValue.length - 1];
+        if (lastChar && separators.includes(lastChar)) {
+          // Remove separator and create chip
+          const textWithoutSeparator = newValue.slice(0, -1).trim();
+          if (textWithoutSeparator) {
+            const newChip = onAdd(textWithoutSeparator);
+            if (newChip) {
+              const updatedChips = [
+                ...value.map((chip) => ({ ...chip, selected: false })),
+                newChip,
+              ];
+              onChange(updatedChips);
+              setInputValue('');
+              return;
+            }
+          }
+          setInputValue('');
+          return;
+        }
+      }
+
+      setInputValue(newValue);
+    },
+    [separators, onAdd, value, onChange]
+  );
+
+  /**
+   * Handle input keydown
+   */
+  const handleInputKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      // Enter: Create chip
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        createChipFromInput();
+        return;
+      }
+
+      // Backspace: Remove last chip ONLY if input is empty
+      if (event.key === 'Backspace' && inputValue === '') {
+        // Only prevent default if there are chips to remove
+        if (value.length > 0 || selectedChips.length > 0) {
+          event.preventDefault();
+          removeChips();
+        }
+        return;
+      }
+
+      // Escape: Clear input
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setInputValue('');
+        clearSelection();
+        return;
+      }
+    },
+    [createChipFromInput, removeChips, clearSelection, inputValue, value, selectedChips]
+  );
+
+  /**
+   * Handle input focus - clear chip selection
+   */
+  const handleInputFocus = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   return (
     <div
@@ -219,10 +341,11 @@ export function ChipInput({
       className={`chip-input ${className}`}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
-      tabIndex={disabled ? -1 : 0}
+      onClick={() => inputRef.current?.focus()}
       style={{
         display: 'flex',
         flexWrap: 'wrap',
+        alignItems: 'center',
         gap: '8px',
         padding: '8px',
         border: '1px solid #ccc',
@@ -236,7 +359,10 @@ export function ChipInput({
       {value.map((chip) => (
         <div
           key={chip.id}
-          onClick={(e) => handleChipClick(chip.id, e)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleChipClick(chip.id, e);
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -254,18 +380,26 @@ export function ChipInput({
         </div>
       ))}
 
-      {/* Placeholder when empty */}
-      {value.length === 0 && (
-        <span
-          style={{
-            color: '#999',
-            fontSize: '14px',
-            pointerEvents: 'none',
-          }}
-        >
-          {placeholder}
-        </span>
-      )}
+      {/* Text input */}
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputValue}
+        onChange={handleInputChange}
+        onKeyDown={handleInputKeyDown}
+        onFocus={handleInputFocus}
+        disabled={disabled}
+        placeholder={value.length === 0 ? placeholder : ''}
+        style={{
+          flex: 1,
+          minWidth: '120px',
+          border: 'none',
+          outline: 'none',
+          padding: '4px',
+          fontSize: '14px',
+          backgroundColor: 'transparent',
+        }}
+      />
     </div>
   );
 }

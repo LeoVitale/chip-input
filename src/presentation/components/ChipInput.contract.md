@@ -2,7 +2,11 @@
 
 ## Version
 
-v1.0.0 - Initial Contract
+v1.1.0 - Text Input & Chip Creation
+
+**Changelog:**
+- v1.1.0: Added text input field, chip creation via Enter, configurable separators
+- v1.0.0: Initial contract with selection, deletion, clipboard
 
 ## Source of Truth
 
@@ -50,6 +54,48 @@ Not supported in v1. Will be added in a future version if needed.
 - Multiple chips can be selected simultaneously
 - Selection is visually distinct (different background color)
 
+## Text Input Semantics (v1.1)
+
+### Input Field Behavior
+
+The component includes a text input field for creating new chips:
+
+```tsx
+<ChipInput
+  value={chips}
+  onChange={setChips}
+  onAdd={(text) => createChip(text)}
+  separators={[',']}  // Optional: create chips on comma
+/>
+```
+
+### Chip Creation
+
+| Action | Behavior |
+|--------|----------|
+| `Enter` key | Create chip from input text, clear input |
+| Separator character (e.g., `,`) | Create chip, clear input (if configured) |
+| Empty input + `Enter` | No-op (no chip created) |
+| Whitespace only + `Enter` | Trimmed, no chip created if empty |
+
+**Guarantees:**
+- Input is cleared after successful chip creation
+- Focus remains on input after chip creation
+- If `onAdd` returns `null`, no chip is created but input keeps text
+- Chip creation never corrupts state
+
+### Focus Management
+
+- Clicking container focuses the input
+- Input clears chip selection when focused
+- Focus moves to input after chip removal
+- `Tab` / `Shift+Tab` moves focus out of component
+
+### Placeholder
+
+- Shows when input is empty AND no chips exist
+- Hidden when chips exist (even if input is empty)
+
 ## Deletion Semantics
 
 | Action | Behavior |
@@ -62,6 +108,7 @@ Not supported in v1. Will be added in a future version if needed.
 **Guarantees:**
 - Deletion is immediate (no confirmation)
 - Deleted chips are removed from state via `onChange`
+- Focus moves to input after removal
 - Component never enters an invalid state after deletion
 
 ## Clipboard Behavior (Baseline)
@@ -147,6 +194,8 @@ interface ChipInputProps {
   className?: string;                         // Custom CSS class
   onCopy?: (chips: Chip[]) => void;          // Copy callback
   onPaste?: (data: string) => Chip[] | null; // Paste callback
+  onAdd?: (text: string) => Chip | null;     // Add chip from text (v1.1)
+  separators?: string[];                     // Create chips on these chars (v1.1)
 }
 ```
 
